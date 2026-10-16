@@ -1,0 +1,331 @@
+///////
+using System;
+
+namespace RepairServiceTracker
+{
+    public class RepairOrder
+    {
+        public string OrderId { get; set; }
+        public string CustomerName { get; set; }
+        public string PhoneNumber { get; set; }
+        public string DeviceType { get; set; }
+        public string ErrorDescription { get; set; }
+        public DateTime ReceiveDate { get; set; }
+        public decimal EstimatedCost { get; set; }
+        public string Status { get; set; } // Mới tiếp nhận, Đang sửa, Chờ linh kiện, Hoàn tất, Đã hủy
+        public string ImagePath { get; set; } // Lưu đường dẫn ảnh thiết bị
+    }
+}
+////////
+using RepairServiceTracker;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System;
+using System.ComponentModel;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace bai3_16_10
+{
+    public partial class Form1 : Form
+    {
+        private BindingList<RepairOrder> originalList = new BindingList<RepairOrder>();
+        private BindingSource bindingSource = new BindingSource();
+        private string selectedImgPath = "";
+        public Form1()
+        {
+            InitializeComponent();
+            txtSearch.TextChanged += InstantSearchAndFilter;
+            cboFilterStatus.SelectedIndexChanged += InstantSearchAndFilter;
+            dgvOrders.SelectionChanged += DgvOrders_SelectionChanged;
+
+            btnSelectImage.Click += BtnSelectImage_Click;
+            btnRemoveImage.Click += BtnRemoveImage_Click;
+
+            btnAdd.Click += BtnAdd_Click;
+            btnUpdate.Click += BtnUpdate_Click;
+            btnDelete.Click += BtnDelete_Click;
+            btnClear.Click += BtnClear_Click;
+
+            menuExportCsv.Click += MenuExportCsv_Click;
+            menuExit.Click += MenuExit_Click;
+
+            // Khởi tạo dữ liệu kiểm thử mặc định ban đầu
+            LoadMockData();
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+        private void LoadMockData()
+        {
+            originalList.Add(new RepairOrder { OrderId = "Đ001", CustomerName = "Nguyễn Văn Tuấn", PhoneNumber = "0901234567", DeviceType = "Laptop", ErrorDescription = "Lỗi màn hình xanh sọc dọc", ReceiveDate = DateTime.Today.AddDays(-2), EstimatedCost = 1500000, Status = "Mới tiếp nhận", ImagePath = "" });
+            originalList.Add(new RepairOrder { OrderId = "Đ002", CustomerName = "Lê Thị Mai", PhoneNumber = "0987654321", DeviceType = "Điện thoại", ErrorDescription = "Vỡ mặt kính cường lực, hỏng cảm ứng", ReceiveDate = DateTime.Today.AddDays(-5), EstimatedCost = 650000, Status = "Đang sửa", ImagePath = "" });
+            originalList.Add(new RepairOrder { OrderId = "Đ003", CustomerName = "Trần Minh Hoàng", PhoneNumber = "0911223344", DeviceType = "Máy tính bảng", ErrorDescription = "Chai pin, không sạc vào điện", ReceiveDate = DateTime.Today.AddDays(-1), EstimatedCost = 400000, Status = "Hoàn tất", ImagePath = "" });
+
+            RefreshDataAndStatistics();
+        }
+
+        // Tự động tính toán lại số liệu trên StatusStrip dựa theo bộ lọc mới (Yêu cầu 6)
+        private void RefreshDataAndStatistics()
+        {
+            // Gọi hàm lọc để đồng bộ bảng lưới hiện tại trước
+            InstantSearchAndFilter(null, null);
+
+            // Thống kê số lượng đơn hiển thị theo bộ lọc đang dùng
+            int filteredCount = dgvOrders.Rows.Count;
+            lblFilteredCount.Text = $"Số đơn theo bộ lọc: {filteredCount}   |   ";
+
+            // Tổng chi phí dự kiến của các đơn có trạng thái chưa hoàn tất (Khác "Hoàn tất" và "Đã hủy")
+            decimal totalPendingCost = originalList
+                .Where(o => o.Status != "Hoàn tất" && o.Status != "Đã hủy")
+                .Sum(o => o.EstimatedCost);
+
+            lblPendingCost.Text = $"Tổng chi phí đơn chưa hoàn tất: {totalPendingCost:N0} VND";
+        }
+
+        // 4. CHỨC NĂNG TÌM KIẾM TỨC THỜI VÀ LỌC TRẠNG THÁI
+        private void InstantSearchAndFilter(object sender, EventArgs e)
+        {
+            string keyword = txtSearch.Text.Trim().ToLower();
+            string statusFilter = cboFilterStatus.SelectedItem?.ToString() ?? "Tất cả";
+
+            var filtered = originalList.Where(order =>
+                (string.IsNullOrEmpty(keyword) ||
+                 order.OrderId.ToLower().Contains(keyword) ||
+                 order.CustomerName.ToLower().Contains(keyword) ||
+                 order.PhoneNumber.Contains(keyword)) &&
+                (statusFilter == "Tất cả" || order.Status == statusFilter)
+            ).ToList();
+
+            bindingSource.DataSource = new BindingList<RepairOrder>(filtered);
+            dgvOrders.DataSource = bindingSource;
+        }
+
+        // Đổ dữ liệu ngược từ bảng lên ô nhập và hiển thị ảnh phóng to (Yêu cầu 3)
+        private void DgvOrders_SelectionChanged(object sender, EventArgs e)
+        {
+            if (dgvOrders.CurrentRow != null)
+            {
+                var order = (RepairOrder)dgvOrders.CurrentRow.DataBoundItem;
+                txtOrderId.Text = order.OrderId;
+                txtOrderId.ReadOnly = true; // Khóa chính không được sửa đổi khi cập nhật
+
+                txtCustomerName.Text = order.CustomerName;
+                txtPhoneNumber.Text = order.PhoneNumber;
+                cboDeviceType.SelectedItem = order.DeviceType;
+                dtpReceiveDate.Value = order.ReceiveDate;
+                numEstimatedCost.Value = order.EstimatedCost;
+                cboStatus.SelectedItem = order.Status;
+                txtErrorDescription.Text = order.ErrorDescription;
+
+                selectedImgPath = order.ImagePath;
+                if (!string.IsNullOrEmpty(selectedImgPath) && File.Exists(selectedImgPath))
+                {
+                    picDevice.Image = Image.FromFile(selectedImgPath);
+                }
+                else
+                {
+                    picDevice.Image = null;
+                }
+            }
+        }
+
+        // Xử lý chọn ảnh bằng OpenFileDialog (Yêu cầu 4)
+        private void BtnSelectImage_Click(object sender, EventArgs e)
+        {
+            using (OpenFileDialog ofd = new OpenFileDialog())
+            {
+                ofd.Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp";
+                if (ofd.ShowDialog() == DialogResult.OK)
+                {
+                    selectedImgPath = ofd.FileName;
+                    picDevice.Image = Image.FromFile(selectedImgPath);
+                }
+            }
+        }
+
+        private void BtnRemoveImage_Click(object sender, EventArgs e)
+        {
+            selectedImgPath = "";
+            picDevice.Image = null;
+        }
+
+        // 5. HỆ THỐNG KIỂM TRA DỮ LIỆU CHẶT CHẼ (VALIDATION)
+        private bool ValidateForm(bool isModeAdding)
+        {
+            errorProvider.Clear();
+            bool isValid = true;
+
+            // Kiểm tra trống và trùng lặp mã đơn
+            if (string.IsNullOrWhiteSpace(txtOrderId.Text))
+            {
+                errorProvider.SetError(txtOrderId, "Mã đơn không được phép bỏ trống.");
+                isValid = false;
+            }
+            else if (isModeAdding && originalList.Any(o => o.OrderId.Trim().ToLower() == txtOrderId.Text.Trim().ToLower()))
+            {
+                errorProvider.SetError(txtOrderId, "Mã đơn đăng ký này đã tồn tại trong hệ thống.");
+                isValid = false;
+            }
+
+            if (string.IsNullOrWhiteSpace(txtCustomerName.Text))
+            {
+                errorProvider.SetError(txtCustomerName, "Họ tên khách hàng bắt buộc phải nhập.");
+                isValid = false;
+            }
+
+            if (string.IsNullOrWhiteSpace(txtPhoneNumber.Text))
+            {
+                errorProvider.SetError(txtPhoneNumber, "Số điện thoại khách hàng không được để trống.");
+                isValid = false;
+            }
+
+            if (cboDeviceType.SelectedIndex == -1)
+            {
+                errorProvider.SetError(cboDeviceType, "Vui lòng chọn phân loại thiết bị sửa chữa.");
+                isValid = false;
+            }
+
+            // Kiểm tra lỗi chi phí âm (Yêu cầu kiểm thử tối thiểu)
+            if (numEstimatedCost.Value < 0)
+            {
+                errorProvider.SetError(numEstimatedCost, "Chi phí sửa chữa dự kiến phải lớn hơn hoặc bằng 0.");
+                isValid = false;
+            }
+
+            // Kiểm tra bắt buộc mô tả lỗi (Yêu cầu kiểm thử tối thiểu)
+            if (string.IsNullOrWhiteSpace(txtErrorDescription.Text))
+            {
+                errorProvider.SetError(txtErrorDescription, "Vui lòng nhập chi tiết mô tả lỗi của thiết bị.");
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // --- CÁC CHỨC NĂNG NGHIỆP VỤ ---
+        private void BtnAdd_Click(object sender, EventArgs e)
+        {
+            if (!ValidateForm(isModeAdding: true)) return;
+
+            var newOrder = new RepairOrder
+            {
+                OrderId = txtOrderId.Text.Trim(),
+                CustomerName = txtCustomerName.Text.Trim(),
+                PhoneNumber = txtPhoneNumber.Text.Trim(),
+                DeviceType = cboDeviceType.SelectedItem.ToString(),
+                ReceiveDate = dtpReceiveDate.Value.Date,
+                EstimatedCost = numEstimatedCost.Value,
+                Status = cboStatus.SelectedItem.ToString(),
+                ErrorDescription = txtErrorDescription.Text.Trim(),
+                ImagePath = selectedImgPath
+            };
+
+            originalList.Add(newOrder);
+            RefreshDataAndStatistics();
+            MessageBox.Show("Thêm đơn đăng ký sửa chữa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            BtnClear_Click(null, null);
+        }
+
+        private void BtnUpdate_Click(object sender, EventArgs e)
+        {
+            if (dgvOrders.CurrentRow == null) return;
+            if (!ValidateForm(isModeAdding: false)) return;
+
+            var currentOrder = (RepairOrder)dgvOrders.CurrentRow.DataBoundItem;
+            var target = originalList.FirstOrDefault(o => o.OrderId == currentOrder.OrderId);
+
+            if (target != null)
+            {
+                target.CustomerName = txtCustomerName.Text.Trim();
+                target.PhoneNumber = txtPhoneNumber.Text.Trim();
+                target.DeviceType = cboDeviceType.SelectedItem.ToString(); target.ReceiveDate = dtpReceiveDate.Value.Date;
+                target.EstimatedCost = numEstimatedCost.Value;
+                target.Status = cboStatus.SelectedItem.ToString();
+                target.ErrorDescription = txtErrorDescription.Text.Trim();
+                target.ImagePath = selectedImgPath;
+                RefreshDataAndStatistics();
+                MessageBox.Show("Cập nhật thông tin đơn sửa chữa thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+        private void BtnDelete_Click(object sender, EventArgs e)
+        {
+            if (dgvOrders.CurrentRow == null) return;
+            var currentOrder = (RepairOrder)dgvOrders.CurrentRow.DataBoundItem;
+            var confirm = MessageBox.Show($"Bạn có chắc chắn muốn xóa bỏ đơn sửa chữa mã '{currentOrder.OrderId}' này không?",
+            "Xác nhận xóa đơn", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (confirm == DialogResult.Yes)
+            {
+                var target = originalList.FirstOrDefault(o => o.OrderId == currentOrder.OrderId);
+                if (target != null)
+                {
+                    originalList.Remove(target);
+                    RefreshDataAndStatistics();
+                    BtnClear_Click(null, null);
+                    MessageBox.Show("Xóa bỏ đơn đăng ký thành công khỏi danh sách!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+        }
+        private void BtnClear_Click(object sender, EventArgs e)
+        {
+            txtOrderId.ReadOnly = false;
+            txtOrderId.Clear();
+            txtCustomerName.Clear();
+            txtPhoneNumber.Clear();
+            cboDeviceType.SelectedIndex = -1;
+            dtpReceiveDate.Value = DateTime.Today;
+            numEstimatedCost.Value = 0;
+            cboStatus.SelectedIndex = 0;
+            txtErrorDescription.Clear();
+            selectedImgPath = "";
+            picDevice.Image = null;
+            errorProvider.Clear();
+        }
+        // 6. XUẤT PHIẾU ĐANG LỌC RA FILE CSV QUA MENU HỆ THỐNG
+        private void MenuExportCsv_Click(object sender, EventArgs e)
+        {
+            if (dgvOrders.Rows.Count == 0)
+            {
+                MessageBox.Show("Không tìm thấy dữ liệu phù hợp trong danh sách hiển thị để xuất file!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            using (SaveFileDialog sfd = new SaveFileDialog())
+            {
+                sfd.Filter = "CSV Files (.csv)|.csv";
+                sfd.FileName = $"DanhSachDonSuaChua_{DateTime.Now:yyyyMMdd}.csv";
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    StringBuilder sb = new StringBuilder();
+                    // Tạo tiêu đề trường dữ liệu CSV công khai
+                    sb.AppendLine("Ma Don,Ten Khach Hang,So Dien Thoai,Loai Thiet Bi,Mo Ta Loi,Ngay Tiep Nhan,Chi Phi Du Kien,Trang Thai");
+                    foreach (DataGridViewRow row in dgvOrders.Rows)
+                    {
+                        var o = (RepairOrder)row.DataBoundItem;
+                        sb.AppendLine($"{o.OrderId},{o.CustomerName},{o.PhoneNumber},{o.DeviceType}," +
+                        $"{o.ErrorDescription.Replace(",", " ")},{o.ReceiveDate:yyyy-MM-dd},{o.EstimatedCost},{o.Status}");
+                    }
+                    File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
+                    MessageBox.Show("Xuất tập tin thống kê dữ liệu CSV thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+        }
+        private void MenuExit_Click(object sender, EventArgs e)
+        {
+            Application.Exit();
+        }
+    }
+}
+            
+
