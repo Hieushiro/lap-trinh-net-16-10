@@ -1,0 +1,197 @@
+////////
+using System;
+
+namespace bai2_16_10
+{
+    public class LoanTicket
+    {
+        public string TicketId { get; set; }
+        public string StudentId { get; set; }
+        public string StudentName { get; set; }
+        public string Equipment { get; set; }
+        public int Quantity { get; set; }
+        public DateTime BorrowDate { get; set; }
+        public DateTime DueDate { get; set; }
+        public DateTime? ActualReturnDate { get; set; }
+        public string Status { get; set; }
+    }
+}
+/////////
+using System.Windows.Forms;
+using System.Drawing;
+
+namespace bai2_16_10
+{
+    partial class Form1
+    {
+        private System.ComponentModel.IContainer components = null;
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        // ĐỊNH NGHĨA CÁC CONTROL TRÊN GIAO DIỆN
+        private TableLayoutPanel mainLayout;
+        private GroupBox grpInput;
+        private TableLayoutPanel inputLayout;
+        private DataGridView dgvList;
+        private StatusStrip statusStrip;
+        private ToolStripStatusLabel lblTotalTickets;
+        private ToolStripStatusLabel lblOverdueTickets;
+        private ErrorProvider errorProvider;
+
+        // Các trường nhập liệu
+        private TextBox txtTicketId, txtStudentId, txtStudentName;
+        private ComboBox cboEquipment;
+        private NumericUpDown numQuantity;
+        private DateTimePicker dtpBorrowDate, dtpDueDate, dtpActualReturnDate;
+        private CheckBox chkIsReturned;
+
+        // Các nút chức năng và thanh tìm kiếm
+        private Button btnAdd, btnUpdate, btnDelete, btnClear, btnExportCsv;
+        private TextBox txtSearch;
+        private ComboBox cboFilterStatus;
+
+        private void InitializeComponent()
+        {
+            this.components = new System.ComponentModel.Container();
+            this.errorProvider = new ErrorProvider(this.components);
+
+            // 1. Cấu hình thuộc tính Form chính (Co giãn tự động)
+            this.Text = "Lab Equipment Checkout Management";
+            this.Size = new Size(1100, 700);
+            this.MinimumSize = new Size(1000, 600);
+            this.StartPosition = FormStartPosition.CenterScreen;
+
+            // 2. Bố cục tổng thể (mainLayout - chia làm 3 hàng dọc)
+            mainLayout = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill,
+                RowCount = 3,
+                ColumnCount = 1,
+                Padding = new Padding(10)
+            };
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 220F)); // Khu vực nhập thông tin
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));  // Khu vực bảng danh sách
+            mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 25F));   // Thanh trạng thái dưới cùng
+            this.Controls.Add(mainLayout);
+
+            // 3. Vùng nhập liệu (GroupBox + TableLayoutPanel 4 hàng x 6 cột)
+            grpInput = new GroupBox { Text = "Thông Tin Phiếu Mượn", Dock = DockStyle.Fill };
+            mainLayout.Controls.Add(grpInput, 0, 0);
+
+            inputLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 6, Padding = new Padding(5) };
+            float[] colWidths = { 12f, 20f, 12f, 20f, 14f, 22f };
+            for (int i = 0; i < 6; i++) inputLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, colWidths[i]));
+            for (int i = 0; i < 4; i++) inputLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
+            grpInput.Controls.Add(inputLayout);
+
+            // --- Hàng 0 ---
+            inputLayout.Controls.Add(new Label { Text = "Mã phiếu:", Anchor = AnchorStyles.Left }, 0, 0);
+            txtTicketId = new TextBox { Dock = DockStyle.Fill };
+            inputLayout.Controls.Add(txtTicketId, 1, 0);
+
+            inputLayout.Controls.Add(new Label { Text = "Mã sinh viên:", Anchor = AnchorStyles.Left }, 2, 0);
+            txtStudentId = new TextBox { Dock = DockStyle.Fill };
+            inputLayout.Controls.Add(txtStudentId, 3, 0);
+
+            inputLayout.Controls.Add(new Label { Text = "Tên sinh viên:", Anchor = AnchorStyles.Left }, 4, 0);
+            txtStudentName = new TextBox { Dock = DockStyle.Fill };
+            inputLayout.Controls.Add(txtStudentName, 5, 0);
+
+            // --- Hàng 1 ---
+            inputLayout.Controls.Add(new Label { Text = "Thiết bị:", Anchor = AnchorStyles.Left }, 0, 1);
+            cboEquipment = new ComboBox { Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList };
+            cboEquipment.Items.AddRange(new string[] { "Laptop Dell", "Oscilloscope", "Arduino Uno Kit", "Raspberry Pi 4", "Máy chiếu Sony" });
+            inputLayout.Controls.Add(cboEquipment, 1, 1);
+
+            inputLayout.Controls.Add(new Label { Text = "Số lượng:", Anchor = AnchorStyles.Left }, 2, 1);
+            numQuantity = new NumericUpDown { Dock = DockStyle.Fill, Minimum = 0, Maximum = 100, Value = 1 };
+            inputLayout.Controls.Add(numQuantity, 3, 1);
+
+            inputLayout.Controls.Add(new Label { Text = "Trạng thái trả:", Anchor = AnchorStyles.Left }, 4, 1);
+            chkIsReturned = new CheckBox { Text = "Đã hoàn trả thiết bị", Anchor = AnchorStyles.Left };
+            inputLayout.Controls.Add(chkIsReturned, 5, 1);
+
+            // --- Hàng 2 ---
+            inputLayout.Controls.Add(new Label { Text = "Ngày mượn:", Anchor = AnchorStyles.Left }, 0, 2);
+            dtpBorrowDate = new DateTimePicker { Dock = DockStyle.Fill, Format = DateTimePickerFormat.Short };
+            inputLayout.Controls.Add(dtpBorrowDate, 1, 2);
+
+            inputLayout.Controls.Add(new Label { Text = "Hạn trả:", Anchor = AnchorStyles.Left }, 2, 2);
+            dtpDueDate = new DateTimePicker { Dock = DockStyle.Fill, Format = DateTimePickerFormat.Short };
+            inputLayout.Controls.Add(dtpDueDate, 3, 2);
+
+            inputLayout.Controls.Add(new Label { Text = "Ngày trả TT:", Anchor = AnchorStyles.Left }, 4, 2);
+            dtpActualReturnDate = new DateTimePicker { Dock = DockStyle.Fill, Format = DateTimePickerFormat.Short, Enabled = false };
+            inputLayout.Controls.Add(dtpActualReturnDate, 5, 2);
+
+            // --- Hàng 3 (Thanh chứa các nút thao tác) ---
+            FlowLayoutPanel buttonPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
+            btnAdd = new Button { Text = "Thêm mới", Width = 95, Height = 32 };
+            btnUpdate = new Button { Text = "Cập nhật", Width = 95, Height = 32 };
+            btnDelete = new Button { Text = "Xóa phiếu", Width = 95, Height = 32 };
+            btnClear = new Button { Text = "Làm mới ô", Width = 95, Height = 32 };
+            buttonPanel.Controls.AddRange(new Control[] { btnAdd, btnUpdate, btnDelete, btnClear });
+            inputLayout.Controls.Add(buttonPanel, 0, 3);
+            inputLayout.SetColumnSpan(buttonPanel, 6);
+
+            // 4. Vùng tìm kiếm, lọc nhanh và Bảng dữ liệu (bottomLayout)
+            TableLayoutPanel bottomLayout = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1 };
+            bottomLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40F));
+            bottomLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            mainLayout.Controls.Add(bottomLayout, 0, 1);
+
+            // Thanh tìm kiếm và bộ lọc nhanh nằm phía trên bảng
+            FlowLayoutPanel filterPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight };
+            filterPanel.Controls.Add(new Label { Text = "Tìm kiếm (Mã SV / Thiết bị):", AutoSize = true, Margin = new Padding(0, 7, 0, 0) });
+            txtSearch = new TextBox { Width = 180 };
+            filterPanel.Controls.Add(txtSearch);
+
+            filterPanel.Controls.Add(new Label { Text = " Lọc trạng thái:", AutoSize = true, Margin = new Padding(15, 7, 0, 0) });
+            cboFilterStatus = new ComboBox { Width = 130, DropDownStyle = ComboBoxStyle.DropDownList };
+            cboFilterStatus.Items.AddRange(new string[] { "Tất cả", "Đang mượn", "Đã trả", "Quá hạn" });
+            cboFilterStatus.SelectedIndex = 0;
+            filterPanel.Controls.Add(cboFilterStatus);
+
+            btnExportCsv = new Button { Text = "Xuất dữ liệu CSV", Width = 130, Height = 26, Margin = new Padding(20, 2, 0, 0) };
+            filterPanel.Controls.Add(btnExportCsv);
+            bottomLayout.Controls.Add(filterPanel, 0, 0);
+
+            // Cấu hình thủ công các cột cho DataGridView (Yêu cầu 3)
+            dgvList = new DataGridView
+            {
+                Dock = DockStyle.Fill,
+                AllowUserToAddRows = false,
+                AutoGenerateColumns = false,
+                SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+                MultiSelect = false,
+                ReadOnly = true,
+                BackgroundColor = Color.White
+            };
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "TicketId", HeaderText = "Mã Phiếu", Width = 95 });
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "StudentId", HeaderText = "Mã SV", Width = 95 });
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "StudentName", HeaderText = "Họ Tên Sinh Viên", Width = 160 });
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Equipment", HeaderText = "Thiết Bị", Width = 140 });
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Quantity", HeaderText = "SL", Width = 50 });
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "BorrowDate", HeaderText = "Ngày Mượn", Width = 105, DefaultCellStyle = new DataGridViewCellStyle { Format = "dd/MM/yyyy" } });
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "DueDate", HeaderText = "Hạn Trả", Width = 105, DefaultCellStyle = new DataGridViewCellStyle { Format = "dd/MM/yyyy" } });
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "ActualReturnDate", HeaderText = "Ngày Trả TT", Width = 105, DefaultCellStyle = new DataGridViewCellStyle { Format = "dd/MM/yyyy" } });
+            dgvList.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Status", HeaderText = "Trạng Thái", Width = 110 });
+            bottomLayout.Controls.Add(dgvList, 0, 1);
+            // 5. Thanh StatusStrip dưới cùng
+            statusStrip = new StatusStrip();
+            lblTotalTickets = new ToolStripStatusLabel { Text = "Tổng số phiếu: 0  |  " };
+            lblOverdueTickets = new ToolStripStatusLabel { Text = "Phiếu quá hạn: 0", ForeColor = Color.Red };
+            statusStrip.Items.AddRange(new ToolStripItem[] { lblTotalTickets, lblOverdueTickets });
+            mainLayout.Controls.Add(statusStrip, 0, 2);
+            // Đăng ký ErrorProvider cho Form chính
+            errorProvider.ContainerControl = this;
+        }
+    }
+}
