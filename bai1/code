@@ -1,0 +1,317 @@
+/////
+using System.ComponentModel;
+using System.Text;
+using System.Text.RegularExpressions;
+
+namespace bai1_16_10
+{
+    public partial class Form1 : Form
+    {
+        private BindingList<Appointment> originalList = new BindingList<Appointment>();
+        private BindingSource bindingSource = new BindingSource();
+
+        public Form1()
+        {
+            InitializeComponent();
+            InitializeData();
+        }
+
+        private void checkBox1_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            // Liên kết dữ liệu
+            bindingSource.DataSource = originalList;
+            dgvAppointments.DataSource = bindingSource;
+
+            // Cài đặt mặc định cho ComboBox
+            cboStatus.SelectedIndex = 0;
+            cboFilterStatus.SelectedIndex = 0; // "Tất cả"
+
+            UpdateStatusCount();
+        }
+
+        // Nạp dữ liệu mẫu ban đầu
+        private void InitializeData()
+        {
+            originalList.Add(new Appointment { ID = "LH001", PatientName = "Nguyen Van A", PhoneNumber = "0912345678", AppointmentDate = DateTime.Now.AddHours(2), Doctor = "BS. Trưởng", Reason = "Đau bụng", Status = "Chờ khám" });
+            originalList.Add(new Appointment { ID = "LH002", PatientName = "Tran Thi B", PhoneNumber = "0987654321", AppointmentDate = DateTime.Now.AddDays(1), Doctor = "BS. Lan", Reason = "Khám tai mũi họng", Status = "Chờ khám" });
+        }
+
+        // Đồng bộ dữ liệu ngược từ DataGridView lên các ô nhập liệu khi chọn dòng
+        private void dgvAppointments_SelectionChanged(object sender, EventArgs e)
+        {
+            if (dgvAppointments.CurrentRow != null)
+            {
+                var app = (Appointment)dgvAppointments.CurrentRow.DataBoundItem;
+                txtID.Text = app.ID;
+                txtID.ReadOnly = true; // Tránh sửa mã lịch hẹn khi đang cập nhật
+                txtPatientName.Text = app.PatientName;
+                txtPhoneNumber.Text = app.PhoneNumber;
+                dtpDate.Value = app.AppointmentDate;
+                cboDoctor.SelectedItem = app.Doctor;
+                txtReason.Text = app.Reason;
+                cboStatus.SelectedItem = app.Status;
+            }
+        }
+
+        // Hàm kiểm tra tính hợp lệ của dữ liệu đầu vào (Validation)
+        private bool ValidateInput(bool isNew)
+        {
+            bool isValid = true;
+            errorProvider1.Clear();
+
+            // 1. Kiểm tra Mã Lịch Hẹn
+            if (string.IsNullOrWhiteSpace(txtID.Text))
+            {
+                errorProvider1.SetError(txtID, "Mã lịch hẹn không được để trống.");
+                isValid = false;
+            }
+            else if (isNew && originalList.Any(a => a.ID.Equals(txtID.Text.Trim(), StringComparison.OrdinalIgnoreCase)))
+            {
+                errorProvider1.SetError(txtID, "Mã lịch hẹn này đã tồn tại.");
+                isValid = false;
+            }
+
+            // 2. Kiểm tra Họ Tên
+            if (string.IsNullOrWhiteSpace(txtPatientName.Text))
+            {
+                errorProvider1.SetError(txtPatientName, "Họ tên bệnh nhân không được để trống.");
+                isValid = false;
+            }
+
+            // 3. Kiểm tra Số Điện Thoại (Phải là số, từ 9-11 ký tự)
+            string phonePattern = @"^\d{9,11}$";
+            if (string.IsNullOrWhiteSpace(txtPhoneNumber.Text) || !Regex.IsMatch(txtPhoneNumber.Text.Trim(), phonePattern))
+            {
+                errorProvider1.SetError(txtPhoneNumber, "Số điện thoại không hợp lệ (phải từ 9-11 chữ số).");
+                isValid = false;
+            }
+
+            // 4. Kiểm tra Lý Do Khám
+            if (string.IsNullOrWhiteSpace(txtReason.Text))
+            {
+                errorProvider1.SetError(txtReason, "Lý do khám không được để trống.");
+                isValid = false;
+            }
+
+            // 5. Kiểm tra Ngày Hẹn không nằm trong quá khứ
+            if (dtpDate.Value < DateTime.Now)
+            {
+                errorProvider1.SetError(dtpDate, "Ngày giờ hẹn không được nằm trong quá khứ.");
+                isValid = false;
+            }
+
+            return isValid;
+        }
+
+        // Chức năng THÊM LỊCH HẸN MỚI
+        private void btnCreate_Click(object sender, EventArgs e)
+        {
+            if (!ValidateInput(isNew: true)) return;
+
+            var newApp = new Appointment
+            {
+                ID = txtID.Text.Trim(),
+                PatientName = txtPatientName.Text.Trim(),
+                PhoneNumber = txtPhoneNumber.Text.Trim(),
+                AppointmentDate = dtpDate.Value,
+                Doctor = cboDoctor.SelectedItem?.ToString() ?? "Chưa chỉ định",
+                Reason = txtReason.Text.Trim(),
+                Status = cboStatus.SelectedItem.ToString()
+            };
+
+            originalList.Add(newApp);
+            ApplyFilterAndSearch();
+            ClearForm();
+            MessageBox.Show("Thêm lịch hẹn thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // Chức năng CẬP NHẬT LỊCH HẸN
+        private void btnUpdate_Click(object sender, EventArgs e)
+        {
+            if (dgvAppointments.CurrentRow == null) return;
+            if (!ValidateInput(isNew: false)) return;
+
+            var selectedApp = (Appointment)dgvAppointments.CurrentRow.DataBoundItem;
+
+            var confirmResult = MessageBox.Show("Bạn có chắc chắn muốn cập nhật lịch hẹn này?", "Xác nhận", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (confirmResult == DialogResult.Yes)
+            {
+                selectedApp.PatientName = txtPatientName.Text.Trim();
+                selectedApp.PhoneNumber = txtPhoneNumber.Text.Trim();
+                selectedApp.AppointmentDate = dtpDate.Value;
+                selectedApp.Doctor = cboDoctor.SelectedItem?.ToString();
+                selectedApp.Reason = txtReason.Text.Trim();
+                selectedApp.Status = cboStatus.SelectedItem.ToString();
+
+                ApplyFilterAndSearch();
+                MessageBox.Show("Cập nhật lịch hẹn thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        // Chức năng XÓA LỊCH HẸN
+        private void btnDelete_Click(object sender, EventArgs e)
+        {
+            if (dgvAppointments.CurrentRow == null) return;
+
+            var selectedApp = (Appointment)dgvAppointments.CurrentRow.DataBoundItem;
+
+            var confirmResult = MessageBox.Show($"Bạn có chắc chắn muốn xóa lịch hẹn của bệnh nhân {selectedApp.PatientName}?", "Xác nhận xóa", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (confirmResult == DialogResult.Yes)
+            {
+                originalList.Remove(selectedApp);
+                ApplyFilterAndSearch();
+                ClearForm();
+                MessageBox.Show("Xóa lịch hẹn thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        // Logic TÌM KIẾM TỨC THỜI VÀ LỌC DỮ LIỆU
+        private void ApplyFilterAndSearch()
+        {
+            string keyword = txtSearch.Text.Trim().ToLower();
+            string filterStatus = cboFilterStatus.SelectedItem?.ToString() ?? "Tất cả";
+            bool isFilterByDate = chkFilterDate.Checked; // Tạo thêm 1 Checkbox để kích hoạt lọc ngày nếu cần
+            DateTime filterDate = dtpFilterDate.Value.Date;
+
+            var filtered = originalList.Where(a =>
+            {
+                // Kiểm tra tìm kiếm theo Tên hoặc Số điện thoại
+                bool matchKeyword = string.IsNullOrEmpty(keyword) ||
+                                    a.PatientName.ToLower().Contains(keyword) ||
+                                    a.PhoneNumber.Contains(keyword);
+
+                // Kiểm tra lọc theo trạng thái
+                bool matchStatus = filterStatus == "Tất cả" || a.Status == filterStatus;
+
+                // Kiểm tra lọc theo ngày
+                bool matchDate = !isFilterByDate || a.AppointmentDate.Date == filterDate;
+
+                return matchKeyword && matchStatus && matchDate;
+            }).ToList();
+
+            // Gán lại danh sách đã lọc vào BindingSource hiển thị
+            bindingSource.DataSource = new BindingList<Appointment>(filtered);
+            UpdateStatusCount();
+        }
+
+        // Sự kiện tương tác để tìm kiếm và lọc tức thời (Instant Search)
+        private void txtSearch_TextChanged(object sender, EventArgs e) => ApplyFilterAndSearch();
+        private void cboFilterStatus_SelectedIndexChanged(object sender, EventArgs e) => ApplyFilterAndSearch();
+        private void dtpFilterDate_ValueChanged(object sender, EventArgs e) => ApplyFilterAndSearch();
+        private void chkFilterDate_CheckedChanged(object sender, EventArgs e) => ApplyFilterAndSearch();
+
+        // Cập nhật số lượng hiển thị ở thanh StatusStrip
+        private void UpdateStatusCount()
+        {
+            lblCount.Text = $"Tổng số lịch hẹn hiển thị: {bindingSource.Count}";
+        }
+
+        // Làm sạch trường nhập liệu
+        private void ClearForm()
+        {
+            txtID.ReadOnly = false;
+            txtID.Clear();
+            txtPatientName.Clear();
+            txtPhoneNumber.Clear();
+            txtReason.Clear();
+            dtpDate.Value = DateTime.Now.AddHours(1);
+            cboStatus.SelectedIndex = 0;
+            errorProvider1.Clear();
+        }
+
+        // Chức năng XUẤT CSV TỪ DANH SÁCH ĐANG HIỂN THỊ
+        private void exportCSVMenuItem_Click(object sender, EventArgs e)
+        {
+            using (SaveFileDialog sfd = new SaveFileDialog())
+            {
+                sfd.Filter = "CSV files (*.csv)|*.csv";
+                sfd.FileName = $"LichHen_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
+
+                if (sfd.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        StringBuilder sb = new StringBuilder();
+                        // Tạo tiêu đề cột CSV
+                        sb.AppendLine("Ma Lich Hen,Ho Ten Benh Nhan,So Dien Thoai,Ngay Gio Hen,Bac Si,Ly Do Kham,Trang Thai");
+
+                        // Lặp qua danh sách hiện tại của BindingSource (danh sách đang hiển thị sau khi lọc)
+                        foreach (BindingSource item in bindingSource)
+                        {
+                            var app = (Appointment)item.Current;
+                            sb.AppendLine($"\"{app.ID}\",\"{app.PatientName}\",\"{app.PhoneNumber}\",\"{app.AppointmentDate:dd/MM/yyyy HH:mm}\",\"{app.Doctor}\",\"{app.Reason}\",\"{app.Status}\"");
+                        }
+
+                        File.WriteAllText(sfd.FileName, sb.ToString(), Encoding.UTF8);
+                        MessageBox.Show("Xuất tệp CSV thành công!", "Thông báo", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Có lỗi xảy ra khi lưu tệp: {ex.Message}", "Lỗi", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+        }
+    }
+}
+///////
+using System;
+using System.ComponentModel;
+
+public class Appointment : INotifyPropertyChanged
+{
+    private string _id;
+    private string _patientName;
+    private string _phoneNumber;
+    private DateTime _appointmentDate;
+    private string _doctor;
+    private string _reason;
+    private string _status;
+
+    public string ID
+    {
+        get => _id;
+        set { _id = value; OnPropertyChanged(nameof(ID)); }
+    }
+    public string PatientName
+    {
+        get => _patientName;
+        set { _patientName = value; OnPropertyChanged(nameof(PatientName)); }
+    }
+    public string PhoneNumber
+    {
+        get => _phoneNumber;
+        set { _phoneNumber = value; OnPropertyChanged(nameof(PhoneNumber)); }
+    }
+    public DateTime AppointmentDate
+    {
+        get => _appointmentDate;
+        set { _appointmentDate = value; OnPropertyChanged(nameof(AppointmentDate)); }
+    }
+    public string Doctor
+    {
+        get => _doctor;
+        set { _doctor = value; OnPropertyChanged(nameof(Doctor)); }
+    }
+    public string Reason
+    {
+        get => _reason;
+        set { _reason = value; OnPropertyChanged(nameof(Reason)); }
+    }
+    public string Status
+    {
+        get => _status;
+        set { _status = value; OnPropertyChanged(nameof(Status)); }
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
+    protected void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
